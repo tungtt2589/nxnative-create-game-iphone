@@ -1,46 +1,37 @@
 name: Build Nintendo Switch Game IPA
 
-# Trigger manually from the Actions tab — paste your Google Drive links when prompted.
 on:
   workflow_dispatch:
     inputs:
-      game_gdrive:
+      game_name:
         description: |
-          Google Drive folder URL/ID chứa file game
-          (NSP / XCI / NSZ — cả base + update + DLC bỏ vào 1 folder rồi share)
-        required: true
-        type: string
-      keys_gdrive:
-        description: |
-          Google Drive file URL/ID cho prod.keys
-          (share file, chọn "Anyone with the link")
+          Ten folder game trong Google Drive games/
+          Vi du: MarioOdyssey, Zelda_TOTK, Hades
         required: true
         type: string
 
-# Use the Xcode 27.2 image — same runner the nxnative project's own CI uses.
-# macOS 26.6 + Apple-silicon hardware required by the project (README).
 env:
   DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
 
 jobs:
   build-ipa:
-    name: Build unsigned IPA
+    name: Build IPA — ${{ inputs.game_name }}
     runs-on: xcode-27
-    timeout-minutes: 180   # large games can take ~30-90 min; max is 360
+    timeout-minutes: 180
 
     steps:
-      # ── 1. Get nxnative source ────────────────────────────────────────────
+      # ── 1. nxnative source ───────────────────────────────────────────────
       - name: Checkout nxnative
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: seedds/nxnative
           persist-credentials: false
 
-      # ── 2. Toolchain ──────────────────────────────────────────────────────
-      - name: Install Metal Toolchain (Xcode component)
+      # ── 2. Toolchain ─────────────────────────────────────────────────────
+      - name: Install Metal Toolchain
         run: xcodebuild -downloadComponent MetalToolchain
 
-      - name: Verify toolchain
+      - name: Verify Metal compiler
         run: |
           xcodebuild -version
           xcrun metal --version
@@ -49,14 +40,14 @@ jobs:
       - name: Install Homebrew packages
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
-        run: brew install xcodegen zstd glslang
+        run: brew install xcodegen zstd glslang unar
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
 
-      # ── 3. Python ─────────────────────────────────────────────────────────
+      # ── 3. Python ────────────────────────────────────────────────────────
       - name: Set up Python 3.12
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -65,65 +56,113 @@ jobs:
       - name: Install Python dependencies
         run: pip install lz4 "capstone>=5,<6" fonttools nsz zbic gdown
 
-      # ── 4. Download game files & keys from Google Drive ───────────────────
-      - name: Download prod.keys
+      # ── 4. Download từ Google Drive ──────────────────────────────────────
+      # GDRIVE_ROOT_ID là secret lưu ID của folder gốc trên Drive
+      - name: Download Google Drive root folder
+        env:
+          GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
+        run: |
+          mkdir -p "$HOME/gdrive_raw"
+          gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw" --remaining-ok
+
+          # gdown tạo subfolder tên theo folder Drive, tìm nó
+          GDRIVE_BASE=$(find "$HOME/gdrive_raw" -mindepth 1 -maxdepth 1 -type d | head -1)
+          if [ -z "$GDRIVE_BASE" ]; then
+            # Nếu không có subfolder thì files nằm thẳng trong gdrive_raw
+            GDRIVE_BASE="$HOME/gdrive_raw"
+          fi
+          echo "GDRIVE_BASE=$GDRIVE_BASE" >> "$GITHUB_ENV"
+          echo "Noi dung Drive:"
+          ls -la "$GDRIVE_BASE/"
+
+      # ── 5. Lấy prod.keys ─────────────────────────────────────────────────
+      - name: Setup prod.keys
         run: |
           mkdir -p "$HOME/keys"
-          gdown "${{ inputs.keys_gdrive }}" -O "$HOME/keys/prod.keys"
-          echo "prod.keys size: $(wc -c < "$HOME/keys/prod.keys") bytes"
+          KEYS_FILE=$(find "$GDRIVE_BASE/keys" -name "prod.keys" 2>/dev/null | head -1)
+          if [ -z "$KEYS_FILE" ]; then
+            echo "ERROR: Khong tim thay prod.keys trong keys/"
+            ls -la "$GDRIVE_BASE/" || true
+            exit 1
+          fi
+          cp "$KEYS_FILE" "$HOME/keys/prod.keys"
+          echo "prod.keys: $(wc -c < "$HOME/keys/prod.keys") bytes"
 
-      - name: Download game files (folder)
+      # ── 6. Giải nén RAR game ─────────────────────────────────────────────
+      - name: Extract game files
+        env:
+          GAME_NAME: ${{ inputs.game_name }}
         run: |
-          mkdir -p "$HOME/Games/game"
-          gdown --folder "${{ inputs.game_gdrive }}" -O "$HOME/Games/game" --remaining-ok || \
-          gdown "${{ inputs.game_gdrive }}" -O "$HOME/Games/game/game.nsp"
-          echo "Downloaded files:"
-          ls -lh "$HOME/Games/game/"
+          GAME_SRC="$GDRIVE_BASE/games/$GAME_NAME"
+          GAME_DST="$HOME/Games/$GAME_NAME"
 
-      # ── 5. Build ──────────────────────────────────────────────────────────
+          if [ ! -d "$GAME_SRC" ]; then
+            echo "ERROR: Khong tim thay folder '$GAME_NAME' trong games/"
+            echo "Cac game co san:"
+            ls "$GDRIVE_BASE/games/" 2>/dev/null || echo "(rong)"
+            exit 1
+          fi
+
+          mkdir -p "$GAME_DST"
+
+          # Tìm file RAR đầu tiên (hỗ trợ single, multi-part .partXX.rar, .r00/.r01)
+          FIRST_RAR=$(find "$GAME_SRC" -maxdepth 2 \( -iname "*.rar" \) | sort | head -1)
+
+          if [ -n "$FIRST_RAR" ]; then
+            echo "Giai nen: $FIRST_RAR"
+            unar -force-overwrite "$FIRST_RAR" -o "$GAME_DST/"
+          else
+            # Không có RAR — copy thẳng NSP/XCI/NSZ
+            echo "Khong co RAR, copy file game truc tiep..."
+            find "$GAME_SRC" -maxdepth 2 \( -iname "*.nsp" -o -iname "*.xci" -o -iname "*.nsz" \) \
+              -exec cp {} "$GAME_DST/" \;
+          fi
+
+          echo "File game sau giai nen:"
+          ls -lh "$GAME_DST/"
+
+      # ── 7. Build IPA ──────────────────────────────────────────────────────
       - name: Build IPA
         run: |
-          python3 scripts/build_ipa_from_nsp.py "$HOME/Games/game" \
+          python3 scripts/build_ipa_from_nsp.py \
+            "$HOME/Games/${{ inputs.game_name }}" \
             -k "$HOME/keys/prod.keys"
 
-      # ── 6. Locate the output IPA ──────────────────────────────────────────
+      # ── 8. Tìm và upload IPA ─────────────────────────────────────────────
       - name: Find built IPA
         id: find_ipa
         run: |
           IPA=$(find "$HOME" . -name "*.ipa" 2>/dev/null | head -1)
           if [ -z "$IPA" ]; then
-            echo "ERROR: No .ipa file found after build!"
+            echo "ERROR: Khong tim thay file .ipa sau khi build!"
             exit 1
           fi
-          echo "Found IPA: $IPA ($(du -sh "$IPA" | cut -f1))"
+          SIZE=$(du -sh "$IPA" | cut -f1)
+          echo "IPA: $IPA ($SIZE)"
           echo "ipa_path=$IPA" >> "$GITHUB_OUTPUT"
 
-      # ── 7. Upload artifact (download from the Actions summary page) ───────
-      - name: Upload IPA artifact
+      - name: Upload IPA
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: unsigned-ipa-${{ github.run_number }}
+          name: ${{ inputs.game_name }}-ipa-${{ github.run_number }}
           path: ${{ steps.find_ipa.outputs.ipa_path }}
-          retention-days: 5   # free accounts have limited storage; grab it within 5 days
+          retention-days: 5
           if-no-files-found: error
 
-      # ── 8. Print summary ──────────────────────────────────────────────────
       - name: Summary
         if: success()
         run: |
-          echo "## Build Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Build thanh cong: ${{ inputs.game_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "IPA: \`${{ steps.find_ipa.outputs.ipa_path }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Tai file .ipa o tab **Artifacts** phia duoi trang nay." >> "$GITHUB_STEP_SUMMARY"
-          echo "Dung AltStore hoac Sideloadly de sideload vao iPhone." >> "$GITHUB_STEP_SUMMARY"
+          echo "Tai file IPA o phan **Artifacts** ben duoi." >> "$GITHUB_STEP_SUMMARY"
+          echo "Dung AltStore hoac Sideloadly de cai vao iPhone." >> "$GITHUB_STEP_SUMMARY"
 
-      # ── Upload logs on failure ─────────────────────────────────────────────
+      # ── Upload logs khi lỗi ───────────────────────────────────────────────
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: build-logs-${{ github.run_number }}
+          name: logs-${{ inputs.game_name }}-${{ github.run_number }}
           path: |
             **/*.log
             /tmp/*.log
