@@ -100,21 +100,30 @@ jobs:
 
           mkdir -p "$GAME_DST"
 
-          # Tìm file RAR đầu tiên (hỗ trợ single, multi-part .partXX.rar, .r00/.r01)
-          FIRST_RAR=$(find "$GAME_SRC" -maxdepth 2 \( -iname "*.rar" \) | sort | head -1)
+          echo "=== Noi dung folder game tren Drive ==="
+          ls -lh "$GAME_SRC/"
 
-          if [ -n "$FIRST_RAR" ]; then
-            echo "Giai nen: $FIRST_RAR"
-            unar -force-overwrite "$FIRST_RAR" -o "$GAME_DST/"
+          # Extract tất cả RARs — bỏ qua continuation parts (.part02+, .r00, .r01...)
+          # -D: không tạo subfolder, extract thẳng vào GAME_DST
+          ENTRY_RARS=$(find "$GAME_SRC" -maxdepth 2 -iname "*.rar" \
+            | grep -viE "\.part0*[2-9][0-9]*\.rar$" \
+            | grep -viE "\.r[0-9]{2}$" \
+            | sort)
+
+          if [ -n "$ENTRY_RARS" ]; then
+            echo "$ENTRY_RARS" | while IFS= read -r RAR; do
+              echo "=== Giai nen: $RAR ==="
+              unar -force-overwrite -D "$RAR" -o "$GAME_DST/"
+            done
           else
             # Không có RAR — copy thẳng NSP/XCI/NSZ
             echo "Khong co RAR, copy file game truc tiep..."
-            find "$GAME_SRC" -maxdepth 2 \( -iname "*.nsp" -o -iname "*.xci" -o -iname "*.nsz" \) \
+            find "$GAME_SRC" -maxdepth 3 \( -iname "*.nsp" -o -iname "*.xci" -o -iname "*.nsz" \) \
               -exec cp {} "$GAME_DST/" \;
           fi
 
-          echo "File game sau giai nen:"
-          ls -lh "$GAME_DST/"
+          echo "=== File sau khi extract ==="
+          find "$GAME_DST" -type f | sort
 
       # ── 7. Build IPA ──────────────────────────────────────────────────────
       - name: Build IPA
