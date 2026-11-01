@@ -1,0 +1,131 @@
+name: Build Nintendo Switch Game IPA
+
+# Trigger manually from the Actions tab — paste your Google Drive links when prompted.
+on:
+  workflow_dispatch:
+    inputs:
+      game_gdrive:
+        description: |
+          Google Drive folder URL/ID chứa file game
+          (NSP / XCI / NSZ — cả base + update + DLC bỏ vào 1 folder rồi share)
+        required: true
+        type: string
+      keys_gdrive:
+        description: |
+          Google Drive file URL/ID cho prod.keys
+          (share file, chọn "Anyone with the link")
+        required: true
+        type: string
+
+# Use the Xcode 27.2 image — same runner the nxnative project's own CI uses.
+# macOS 26.6 + Apple-silicon hardware required by the project (README).
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+
+jobs:
+  build-ipa:
+    name: Build unsigned IPA
+    runs-on: xcode-27
+    timeout-minutes: 180   # large games can take ~30-90 min; max is 360
+
+    steps:
+      # ── 1. Get nxnative source ────────────────────────────────────────────
+      - name: Checkout nxnative
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: seedds/nxnative
+          persist-credentials: false
+
+      # ── 2. Toolchain ──────────────────────────────────────────────────────
+      - name: Install Metal Toolchain (Xcode component)
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Verify toolchain
+        run: |
+          xcodebuild -version
+          xcrun metal --version
+          python3 dm/gfx/tools/own_compilers.py --check-metal
+
+      - name: Install Homebrew packages
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: brew install xcodegen zstd glslang
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+
+      # ── 3. Python ─────────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install lz4 "capstone>=5,<6" fonttools nsz zbic gdown
+
+      # ── 4. Download game files & keys from Google Drive ───────────────────
+      - name: Download prod.keys
+        run: |
+          mkdir -p "$HOME/keys"
+          gdown "${{ inputs.keys_gdrive }}" -O "$HOME/keys/prod.keys"
+          echo "prod.keys size: $(wc -c < "$HOME/keys/prod.keys") bytes"
+
+      - name: Download game files (folder)
+        run: |
+          mkdir -p "$HOME/Games/game"
+          gdown --folder "${{ inputs.game_gdrive }}" -O "$HOME/Games/game" --remaining-ok || \
+          gdown "${{ inputs.game_gdrive }}" -O "$HOME/Games/game/game.nsp"
+          echo "Downloaded files:"
+          ls -lh "$HOME/Games/game/"
+
+      # ── 5. Build ──────────────────────────────────────────────────────────
+      - name: Build IPA
+        run: |
+          python3 scripts/build_ipa_from_nsp.py "$HOME/Games/game" \
+            -k "$HOME/keys/prod.keys"
+
+      # ── 6. Locate the output IPA ──────────────────────────────────────────
+      - name: Find built IPA
+        id: find_ipa
+        run: |
+          IPA=$(find "$HOME" . -name "*.ipa" 2>/dev/null | head -1)
+          if [ -z "$IPA" ]; then
+            echo "ERROR: No .ipa file found after build!"
+            exit 1
+          fi
+          echo "Found IPA: $IPA ($(du -sh "$IPA" | cut -f1))"
+          echo "ipa_path=$IPA" >> "$GITHUB_OUTPUT"
+
+      # ── 7. Upload artifact (download from the Actions summary page) ───────
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-ipa-${{ github.run_number }}
+          path: ${{ steps.find_ipa.outputs.ipa_path }}
+          retention-days: 5   # free accounts have limited storage; grab it within 5 days
+          if-no-files-found: error
+
+      # ── 8. Print summary ──────────────────────────────────────────────────
+      - name: Summary
+        if: success()
+        run: |
+          echo "## Build Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "IPA: \`${{ steps.find_ipa.outputs.ipa_path }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tai file .ipa o tab **Artifacts** phia duoi trang nay." >> "$GITHUB_STEP_SUMMARY"
+          echo "Dung AltStore hoac Sideloadly de sideload vao iPhone." >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Upload logs on failure ─────────────────────────────────────────────
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-logs-${{ github.run_number }}
+          path: |
+            **/*.log
+            /tmp/*.log
+          retention-days: 3
+          if-no-files-found: ignore
