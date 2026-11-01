@@ -65,15 +65,10 @@ jobs:
           mkdir -p "$HOME/gdrive_raw"
           gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw"
 
-          # gdown tạo subfolder tên theo folder Drive, tìm nó
-          GDRIVE_BASE=$(find "$HOME/gdrive_raw" -mindepth 1 -maxdepth 1 -type d | head -1)
-          if [ -z "$GDRIVE_BASE" ]; then
-            # Nếu không có subfolder thì files nằm thẳng trong gdrive_raw
-            GDRIVE_BASE="$HOME/gdrive_raw"
-          fi
-          echo "GDRIVE_BASE=$GDRIVE_BASE" >> "$GITHUB_ENV"
+          # gdown download thẳng contents vào -O dir, không tạo thêm subfolder
+          echo "GDRIVE_BASE=$HOME/gdrive_raw" >> "$GITHUB_ENV"
           echo "Noi dung Drive:"
-          ls -la "$GDRIVE_BASE/"
+          ls -la "$HOME/gdrive_raw/"
 
       # ── 5. Lấy prod.keys ─────────────────────────────────────────────────
       - name: Setup prod.keys
