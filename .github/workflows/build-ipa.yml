@@ -63,7 +63,7 @@ jobs:
           GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
         run: |
           mkdir -p "$HOME/gdrive_raw"
-          gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw" --remaining-ok
+          gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw"
 
           # gdown tạo subfolder tên theo folder Drive, tìm nó
           GDRIVE_BASE=$(find "$HOME/gdrive_raw" -mindepth 1 -maxdepth 1 -type d | head -1)
