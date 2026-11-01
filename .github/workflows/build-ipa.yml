@@ -54,7 +54,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Python dependencies
-        run: pip install lz4 "capstone>=5,<6" fonttools nsz zbic gdown
+        run: pip install lz4 "capstone>=5,<6" fonttools nsz zbic gdown backports.zstd
 
       # ── 4. Download từ Google Drive ──────────────────────────────────────
       # GDRIVE_ROOT_ID là secret lưu ID của folder gốc trên Drive
