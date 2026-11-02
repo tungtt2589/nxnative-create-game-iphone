@@ -73,13 +73,8 @@ jobs:
           echo "$GDRIVE_SA_JSON" > "$SA_FILE"
           chmod 600 "$SA_FILE"
 
-          cat > "$HOME/.config/rclone/rclone.conf" <<EOF
-[gdrive]
-type = drive
-scope = drive.readonly
-service_account_file = $SA_FILE
-root_folder_id = $GDRIVE_ROOT_ID
-EOF
+          printf '[gdrive]\ntype = drive\nscope = drive.readonly\nservice_account_file = %s\nroot_folder_id = %s\n' \
+            "$SA_FILE" "$GDRIVE_ROOT_ID" > "$HOME/.config/rclone/rclone.conf"
 
           mkdir -p "$HOME/gdrive_raw"
           rclone copy gdrive: "$HOME/gdrive_raw" \
