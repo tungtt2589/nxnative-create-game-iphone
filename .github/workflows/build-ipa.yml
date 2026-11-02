@@ -65,16 +65,9 @@ jobs:
         run: |
           mkdir -p "$HOME/gdrive_raw"
 
-          # Lấy danh sách file IDs từ folder (JSON, không download)
-          gdown --folder "$GDRIVE_ROOT_ID" --json -O "$HOME/gdrive_raw" \
-            > "$HOME/gdrive_listing.json" 2>/dev/null || true
-
-          # Download toàn bộ folder — tiếp tục dù có file lớn bị lỗi
-          gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw" || \
-            echo "Warning: some files failed (large files), will retry individually"
-
-          # Retry các file lớn bị fail bằng cách download riêng lẻ (bypass virus scan)
-          python3 .github/scripts/retry_gdrive.py
+          # Download folder — dùng --no-cookies để bypass Google virus scan cho file lớn
+          gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw" --no-cookies || \
+            gdown --folder "$GDRIVE_ROOT_ID" -O "$HOME/gdrive_raw" || true
 
           echo "GDRIVE_BASE=$HOME/gdrive_raw" >> "$GITHUB_ENV"
           echo "=== Noi dung Drive ==="
