@@ -73,6 +73,38 @@ jobs:
           echo "=== Noi dung Drive ==="
           find "$HOME/gdrive_raw" -maxdepth 3 | sort
 
+      # ── 4b. Download large files individually (bypass gdown --folder limit) ──
+      - name: Download large game files (individual IDs)
+        env:
+          GAME_NAME: ${{ inputs.game_name }}
+          FF_TACTICS_FILE1_ID: ${{ secrets.FF_TACTICS_FILE1_ID }}
+          FF_TACTICS_FILE2_ID: ${{ secrets.FF_TACTICS_FILE2_ID }}
+          FF_TACTICS_UPDATE_ID: ${{ secrets.FF_TACTICS_UPDATE_ID }}
+        run: |
+          # Tìm folder Games/ (case insensitive) trong gdrive_raw
+          GAMES_DIR=$(find "$GDRIVE_BASE" -maxdepth 1 -type d -iname "games" | head -1)
+          GAME_DIR="${GAMES_DIR:-$GDRIVE_BASE/Games}/$GAME_NAME"
+          mkdir -p "$GAME_DIR"
+
+          download_if_set() {
+            local fid="$1" dest="$2"
+            if [ -n "$fid" ] && [ ! -f "$dest" ]; then
+              echo "=== Downloading $dest ==="
+              gdown "$fid" -O "$dest" || echo "WARN: failed $dest"
+            fi
+          }
+
+          case "$GAME_NAME" in
+            "FF tactics")
+              download_if_set "$FF_TACTICS_FILE1_ID" "$GAME_DIR/base.part1.rar"
+              download_if_set "$FF_TACTICS_FILE2_ID" "$GAME_DIR/base.part2.rar"
+              download_if_set "$FF_TACTICS_UPDATE_ID" "$GAME_DIR/update.rar"
+              ;;
+          esac
+
+          echo "=== Game dir sau khi download rieng ==="
+          ls -lh "$GAME_DIR/" 2>/dev/null || true
+
       # ── 5. Lấy prod.keys ─────────────────────────────────────────────────
       - name: Setup prod.keys
         run: |
