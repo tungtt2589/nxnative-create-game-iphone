@@ -125,6 +125,12 @@ jobs:
           echo "=== File sau khi extract ==="
           find "$GAME_DST" -type f | sort
 
+          # Xóa toàn bộ Drive download để giải phóng disk trước khi build
+          echo "=== Giai phong disk ==="
+          df -h "$HOME" | tail -1
+          rm -rf "$HOME/gdrive_raw"
+          df -h "$HOME" | tail -1
+
       # ── 7. Build IPA ──────────────────────────────────────────────────────
       - name: Build IPA
         run: |
