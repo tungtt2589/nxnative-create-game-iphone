@@ -56,6 +56,18 @@ jobs:
       - name: Install Python dependencies
         run: pip install lz4 "capstone>=5,<6" fonttools nsz zbic gdown backports.zstd
 
+      # ── 3b. Free disk space (Xcode caches) ───────────────────────────────
+      - name: Free disk space
+        run: |
+          echo "=== Disk truoc khi don ===" && df -h / | tail -1
+          rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport 2>/dev/null || true
+          rm -rf ~/Library/Developer/Xcode/DerivedData 2>/dev/null || true
+          xcrun simctl delete unavailable 2>/dev/null || true
+          rm -rf ~/Library/Developer/CoreSimulator/Caches 2>/dev/null || true
+          brew cleanup --prune=all 2>/dev/null || true
+          rm -rf "$(brew --cache)" 2>/dev/null || true
+          echo "=== Disk sau khi don ===" && df -h / | tail -1
+
       # ── 4. Download từ Google Drive via rclone + Service Account ────────
       - name: Download Google Drive root folder
         env:
