@@ -77,11 +77,11 @@ jobs:
             "$SA_FILE" "$GDRIVE_ROOT_ID" > "$HOME/.config/rclone/rclone.conf"
 
           mkdir -p "$HOME/gdrive_raw"
-          rclone copy gdrive: "$HOME/gdrive_raw" \
-            --drive-acknowledge-abuse \
-            --transfers 4 \
-            --progress \
-            2>&1 | tail -20
+          # Chi download keys/ va folder game cu the (khong download toan bo Drive)
+          rclone copy gdrive:keys "$HOME/gdrive_raw/keys" \
+            --drive-acknowledge-abuse --transfers 4 2>&1 | tail -5
+          rclone copy "gdrive:Games/$GAME_NAME" "$HOME/gdrive_raw/Games/$GAME_NAME" \
+            --drive-acknowledge-abuse --transfers 4 2>&1 | tail -5
 
           echo "GDRIVE_BASE=$HOME/gdrive_raw" >> "$GITHUB_ENV"
           echo "=== Noi dung Drive ==="
