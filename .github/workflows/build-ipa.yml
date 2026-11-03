@@ -132,15 +132,8 @@ jobs:
             echo "OK: $dest ($(du -sh "$dest" | cut -f1))"
           }
 
-          case "$GAME_NAME" in
-            "fire emblem 3 houses")
-              dl "$FE3H_FILE1_ID" "$GAME_DIR/base.part1.rar"
-              dl "$FE3H_FILE2_ID" "$GAME_DIR/base.part2.rar"
-              dl "$FE3H_FILE3_ID" "$GAME_DIR/base.part3.rar"
-              dl "$FE3H_UPDATE_ID" "$GAME_DIR/update.rar"
-              dl "$FE3H_DLC_ID" "$GAME_DIR/dlc.rar"
-              ;;
-          esac
+          # No per-game overrides needed (all games use rclone from Drive)
+          echo "No per-game overrides for: $GAME_NAME"
 
           echo "=== Game dir ===" && ls -lh "$GAME_DIR/" 2>/dev/null || true
 
