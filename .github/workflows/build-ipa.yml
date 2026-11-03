@@ -115,10 +115,21 @@ jobs:
 
           dl() {
             local fid="$1" dest="$2"
-            [ -n "$fid" ] && [ ! -f "$dest" ] && {
-              echo "=== Downloading: $dest ==="
-              gdown "$fid" -O "$dest" || echo "WARN: failed $dest"
-            }
+            if [ -z "$fid" ]; then
+              echo "SKIP: no ID for $dest"
+              return 0
+            fi
+            [ -f "$dest" ] && { echo "EXISTS: $dest"; return 0; }
+            echo "=== Downloading: $dest ==="
+            gdown --fuzzy "$fid" -O "$dest"
+            local sz
+            sz=$(stat -f%z "$dest" 2>/dev/null || echo 0)
+            if [ "$sz" -lt 1048576 ]; then
+              echo "ERROR: $dest too small ($sz bytes), download failed"
+              cat "$dest" 2>/dev/null || true
+              exit 1
+            fi
+            echo "OK: $dest ($(du -sh "$dest" | cut -f1))"
           }
 
           case "$GAME_NAME" in
