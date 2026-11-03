@@ -150,15 +150,17 @@ jobs:
           rm -rf "$HOME/gdrive_raw"
           df -h "$HOME" | tail -1
 
-      # ── 7. Build IPA ──────────────────────────────────────────────────────
+      # ── 7. Build IPA (ROMFS separate — IPA nho, romfs.img rieng) ─────────
       - name: Build IPA
         run: |
+          # Doi ROMFS = 'bundle' thanh 'separate' de IPA nho, romfs.img rieng
+          sed -i '' "s/ROMFS = 'bundle'/ROMFS = 'separate'/" scripts/build_ipa_from_nsp.py
           python3 scripts/build_ipa_from_nsp.py \
             "$HOME/Games/${{ inputs.game_name }}" \
             -k "$HOME/keys/prod.keys"
 
-      # ── 8. Tìm và upload IPA ─────────────────────────────────────────────
-      - name: Find built IPA
+      # ── 8. Tìm và upload IPA + romfs.img ─────────────────────────────────
+      - name: Find built IPA and romfs
         id: find_ipa
         run: |
           IPA=$(find "$HOME" . -name "*.ipa" 2>/dev/null | head -1)
@@ -170,6 +172,14 @@ jobs:
           echo "IPA: $IPA ($SIZE)"
           echo "ipa_path=$IPA" >> "$GITHUB_OUTPUT"
 
+          # Tim romfs.img (separate build)
+          ROMFS=$(find "$HOME" . -name "RomFS.img" -o -name "romfs.img" 2>/dev/null | grep -v "gdrive" | head -1)
+          if [ -n "$ROMFS" ]; then
+            ROMFS_SIZE=$(du -sh "$ROMFS" | cut -f1)
+            echo "romfs: $ROMFS ($ROMFS_SIZE)"
+            echo "romfs_path=$ROMFS" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload IPA
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -177,6 +187,15 @@ jobs:
           path: ${{ steps.find_ipa.outputs.ipa_path }}
           retention-days: 5
           if-no-files-found: error
+
+      - name: Upload romfs.img
+        if: steps.find_ipa.outputs.romfs_path != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.game_name }}-romfs-${{ github.run_number }}
+          path: ${{ steps.find_ipa.outputs.romfs_path }}
+          retention-days: 5
+          if-no-files-found: warn
 
       - name: Summary
         if: success()
