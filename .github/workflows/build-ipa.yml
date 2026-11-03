@@ -167,6 +167,8 @@ jobs:
             echo "$ENTRY_RARS" | while IFS= read -r RAR; do
               echo "=== Giai nen: $RAR ==="
               unar -force-overwrite -D "$RAR" -o "$GAME_DST/"
+              rm -f "$RAR"
+              echo "=== Disk sau khi xoa RAR ===" && df -h "$HOME" | tail -1
             done
           else
             # Không có RAR — copy thẳng NSP/XCI/NSZ
