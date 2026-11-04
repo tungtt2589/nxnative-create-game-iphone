@@ -10,6 +10,9 @@ on:
         required: true
         type: string
 
+env:
+  DM_ALLOW_OTHER_METAL: "1"
+
 jobs:
   build-ipa:
     name: Build IPA — ${{ inputs.game_name }}
