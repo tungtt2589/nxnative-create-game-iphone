@@ -11,12 +11,12 @@ on:
         type: string
 
 env:
-  DM_ALLOW_OTHER_METAL: "1"
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
 
 jobs:
   build-ipa:
     name: Build IPA — ${{ inputs.game_name }}
-    runs-on: macos-latest
+    runs-on: xcode-27
     timeout-minutes: 180
 
     steps:
@@ -204,8 +204,6 @@ jobs:
 
       # ── 7. Build IPA (ROMFS separate — IPA nho, romfs.img rieng) ─────────
       - name: Build IPA
-        env:
-          DM_ALLOW_OTHER_METAL: "1"
         run: |
           # Doi ROMFS = 'bundle' thanh 'separate' de IPA nho, romfs.img rieng
           sed -i '' "s/ROMFS = 'bundle'/ROMFS = 'separate'/" scripts/build_ipa_from_nsp.py
