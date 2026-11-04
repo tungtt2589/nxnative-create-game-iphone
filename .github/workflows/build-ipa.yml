@@ -201,6 +201,8 @@ jobs:
 
       # ── 7. Build IPA (ROMFS separate — IPA nho, romfs.img rieng) ─────────
       - name: Build IPA
+        env:
+          DM_ALLOW_OTHER_METAL: "1"
         run: |
           # Doi ROMFS = 'bundle' thanh 'separate' de IPA nho, romfs.img rieng
           sed -i '' "s/ROMFS = 'bundle'/ROMFS = 'separate'/" scripts/build_ipa_from_nsp.py
