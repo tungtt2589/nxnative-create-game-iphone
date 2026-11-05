@@ -17,6 +17,14 @@ jobs:
     timeout-minutes: 240
 
     steps:
+      # ── 0. Cleanup previous build artifacts ──────────────────────────────
+      - name: Cleanup workspace
+        run: |
+          rm -rf "$HOME/Games" "$HOME/gdrive_raw" "$HOME/keys" "$HOME/_work/_tool" || true
+          find "$HOME" -name "*.ipa" -delete 2>/dev/null || true
+          find "$HOME" -name "RomFS.img" -o -name "romfs.img" 2>/dev/null -delete || true
+          df -h "$HOME" | tail -1
+
       # ── 1. nxnative source ───────────────────────────────────────────────
       - name: Checkout nxnative
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
