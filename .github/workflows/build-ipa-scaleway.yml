@@ -158,7 +158,9 @@ jobs:
           sed -i '' "s/ROMFS = 'bundle'/ROMFS = 'separate'/" scripts/build_ipa_from_nsp.py
           python3.12 scripts/build_ipa_from_nsp.py \
             "$HOME/Games/${{ inputs.game_name }}" \
-            -k "$HOME/keys/prod.keys"
+            -k "$HOME/keys/prod.keys" \
+            --allow-other-metal \
+            --provisional
 
       # ── 12. Upload artifacts ─────────────────────────────────────────────
       - name: Find built IPA and romfs
