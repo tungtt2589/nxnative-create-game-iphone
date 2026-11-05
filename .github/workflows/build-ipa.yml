@@ -257,8 +257,11 @@ jobs:
         run: |
           SA_FILE="$HOME/.config/rclone/sa.json"
           echo "$GDRIVE_SA_JSON" > "$SA_FILE" && chmod 600 "$SA_FILE"
+          # Dung scope drive (read+write) de upload
+          printf '[gdrive_rw]\ntype = drive\nscope = drive\nservice_account_file = %s\nroot_folder_id = %s\n' \
+            "$SA_FILE" "$GDRIVE_ROOT_ID" > "$HOME/.config/rclone/rclone.conf"
           DEST="builds/${{ inputs.game_name }}-romfs-${{ github.run_number }}"
-          rclone copy "${{ steps.find_ipa.outputs.romfs_path }}" "gdrive:$DEST" \
+          rclone copy "${{ steps.find_ipa.outputs.romfs_path }}" "gdrive_rw:$DEST" \
             --drive-acknowledge-abuse --transfers 4 2>&1 | tail -5
           echo "=== RomFS uploaded to Drive: $DEST ==="
 
