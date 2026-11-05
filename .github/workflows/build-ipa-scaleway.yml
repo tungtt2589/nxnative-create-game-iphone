@@ -76,7 +76,7 @@ jobs:
           "$(brew --prefix python@3.12)/bin/python3.12" --version
 
       - name: Install Python dependencies
-        run: pip3.12 install lz4 "capstone>=5,<6" fonttools nsz zbic gdown backports.zstd
+        run: pip3.12 install --break-system-packages lz4 "capstone>=5,<6" fonttools nsz zbic gdown backports.zstd
 
       # ── 7. .NET 10 ───────────────────────────────────────────────────────
       - name: Set up .NET 10
@@ -156,7 +156,7 @@ jobs:
           DM_ALLOW_OTHER_METAL: "1"
         run: |
           sed -i '' "s/ROMFS = 'bundle'/ROMFS = 'separate'/" scripts/build_ipa_from_nsp.py
-          python3 scripts/build_ipa_from_nsp.py \
+          python3.12 scripts/build_ipa_from_nsp.py \
             "$HOME/Games/${{ inputs.game_name }}" \
             -k "$HOME/keys/prod.keys"
 
