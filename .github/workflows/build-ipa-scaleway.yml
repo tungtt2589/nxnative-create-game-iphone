@@ -50,6 +50,8 @@ jobs:
 
       # ── 4. Verify Metal + GPU ────────────────────────────────────────────
       - name: Verify Metal + GPU
+        env:
+          DM_ALLOW_OTHER_METAL: "1"
         run: |
           xcrun metal --version
           system_profiler SPDisplaysDataType | grep -E "Metal|Chip|GPU" || true
