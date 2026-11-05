@@ -10,9 +10,6 @@ on:
         required: true
         type: string
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
-
 jobs:
   build-ipa:
     name: Build IPA — ${{ inputs.game_name }}
@@ -27,25 +24,48 @@ jobs:
           repository: seedds/nxnative
           persist-credentials: false
 
-      # ── 2. Verify Metal + Xcode ──────────────────────────────────────────
-      - name: Verify Xcode + Metal
+      # ── 2. Detect Xcode + set DEVELOPER_DIR ─────────────────────────────
+      - name: Set DEVELOPER_DIR
         run: |
+          # On Scaleway macOS 27, Xcode is at /Applications/Xcode.app
+          # On GitHub runner, it's at /Applications/Xcode_27.2.app
+          XCODE_PATH=$(xcode-select -p 2>/dev/null || true)
+          if [ -z "$XCODE_PATH" ]; then
+            # Try common paths
+            for p in /Applications/Xcode.app /Applications/Xcode_27.app /Applications/Xcode_27.2.app; do
+              if [ -d "$p" ]; then
+                sudo xcode-select -s "$p/Contents/Developer"
+                XCODE_PATH="$p/Contents/Developer"
+                break
+              fi
+            done
+          fi
+          echo "DEVELOPER_DIR=$XCODE_PATH" >> "$GITHUB_ENV"
+          echo "Xcode path: $XCODE_PATH"
           xcodebuild -version
+
+      # ── 3. Install Metal Toolchain ───────────────────────────────────────
+      - name: Install Metal Toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      # ── 4. Verify Metal + GPU ────────────────────────────────────────────
+      - name: Verify Metal + GPU
+        run: |
           xcrun metal --version
           system_profiler SPDisplaysDataType | grep -E "Metal|Chip|GPU" || true
           python3 dm/gfx/tools/own_compilers.py --check-metal
 
-      # ── 3. Install Homebrew packages ─────────────────────────────────────
+      # ── 5. Install Homebrew packages ─────────────────────────────────────
       - name: Install Homebrew packages
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
         run: brew install xcodegen zstd glslang unar rclone 2>&1 | tail -10 || true
 
-      # ── 4. Python deps ───────────────────────────────────────────────────
+      # ── 6. Python deps ───────────────────────────────────────────────────
       - name: Install Python dependencies
         run: pip3 install lz4 "capstone>=5,<6" fonttools nsz zbic gdown backports.zstd
 
-      # ── 5. .NET 10 ───────────────────────────────────────────────────────
+      # ── 7. .NET 10 ───────────────────────────────────────────────────────
       - name: Set up .NET 10
         run: |
           if ! command -v dotnet &>/dev/null; then
@@ -54,7 +74,7 @@ jobs:
           fi
           dotnet --version
 
-      # ── 6. Download từ Google Drive ──────────────────────────────────────
+      # ── 8. Download từ Google Drive ──────────────────────────────────────
       - name: Download Google Drive
         env:
           GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
@@ -76,7 +96,7 @@ jobs:
           echo "GDRIVE_BASE=$HOME/gdrive_raw" >> "$GITHUB_ENV"
           find "$HOME/gdrive_raw" -maxdepth 3 | sort
 
-      # ── 7. Setup prod.keys ───────────────────────────────────────────────
+      # ── 9. Setup prod.keys ───────────────────────────────────────────────
       - name: Setup prod.keys
         run: |
           mkdir -p "$HOME/keys"
@@ -85,7 +105,7 @@ jobs:
           cp "$KEYS_FILE" "$HOME/keys/prod.keys"
           echo "prod.keys: $(wc -c < "$HOME/keys/prod.keys") bytes"
 
-      # ── 8. Extract game files ────────────────────────────────────────────
+      # ── 10. Extract game files ───────────────────────────────────────────
       - name: Extract game files
         env:
           GAME_NAME: ${{ inputs.game_name }}
@@ -117,7 +137,7 @@ jobs:
           find "$GAME_DST" -type f | sort
           rm -rf "$HOME/gdrive_raw"
 
-      # ── 9. Build IPA ─────────────────────────────────────────────────────
+      # ── 11. Build IPA ────────────────────────────────────────────────────
       - name: Build IPA
         env:
           DM_ALLOW_OTHER_METAL: "1"
@@ -127,7 +147,7 @@ jobs:
             "$HOME/Games/${{ inputs.game_name }}" \
             -k "$HOME/keys/prod.keys"
 
-      # ── 10. Upload artifacts ─────────────────────────────────────────────
+      # ── 12. Upload artifacts ─────────────────────────────────────────────
       - name: Find built IPA and romfs
         id: find_ipa
         run: |
