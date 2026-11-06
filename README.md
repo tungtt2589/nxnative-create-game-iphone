@@ -274,6 +274,8 @@ bash .github/scripts/scaleway_manage.sh delete
 | Octopath Traveler 2 | 526 MB | 12 GB | `--provisional` | ROMFS=separate |
 | **FE3H** | **1.1 GB** | **12 GB** | `--provisional --allow-other-metal` | **Can Scaleway (Metal 4)** |
 
+**Trang thai hien tai (2026-11-06):** Tat ca 6 game da build + download ve Mac local. Scaleway server da xoa.
+
 ---
 
 ## Troubleshooting va Lessons Learned
@@ -320,6 +322,20 @@ Dung Sideloadly de cai, AltStore tu nhan vao My Apps sau.
 
 ### App khong hien trong AltStore du cung Apple ID
 Binh thuong. App cai bang Sideloadly van duoc auto-refresh boi AltStore trong My Apps.
+
+### "Device has reached maximum number of installed apps using a free developer profile"
+iOS gioi han tong cong **3 app sideload tren 1 thiet bi** (tinh tat ca Apple ID mien phi cong lai). Dung them Apple ID khac khong giup duoc.
+- Giai phap A: Xoa 1 app cu de lay slot
+- Giai phap B: Apple Developer Account ($99/nam) — unlimited app, khong can resign 7 ngay
+
+### Auto-delete script bi stuck neu Mac ngu
+`sleep` trong bash bi tam dung khi Mac ngu. Neu can xoa server tu dong, xoa thu cong khi den gio:
+```bash
+export SCW_ACCESS_KEY=SCWAG4XSJ9Q26HJKDDZE SCW_SECRET_KEY=f019d4e0-1be1-4c6b-8f79-b68d73589f3f \
+  SCW_DEFAULT_ORGANIZATION_ID=e80a64ac-e120-4941-a0e6-1cce5ce8bac7 \
+  SCW_DEFAULT_PROJECT_ID=e80a64ac-e120-4941-a0e6-1cce5ce8bac7
+scw apple-silicon server delete <SERVER_ID> zone=fr-par-1
+```
 
 ---
 
