@@ -56,16 +56,21 @@ jobs:
       - name: Install Python dependencies
         run: pip install lz4 "capstone>=5,<6" fonttools nsz zbic gdown backports.zstd
 
-      # ── 3b. Free disk space (Xcode caches) ───────────────────────────────
+      # ── 3b. Free disk space ───────────────────────────────────────────────
       - name: Free disk space
         run: |
           echo "=== Disk truoc khi don ===" && df -h / | tail -1
           rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport 2>/dev/null || true
           rm -rf ~/Library/Developer/Xcode/DerivedData 2>/dev/null || true
+          rm -rf ~/Library/Developer/Xcode/Archives 2>/dev/null || true
           xcrun simctl delete unavailable 2>/dev/null || true
-          rm -rf ~/Library/Developer/CoreSimulator/Caches 2>/dev/null || true
+          rm -rf ~/Library/Developer/CoreSimulator 2>/dev/null || true
           brew cleanup --prune=all 2>/dev/null || true
           rm -rf "$(brew --cache)" 2>/dev/null || true
+          # Android SDK (usually 5-10 GB on GitHub hosted runners)
+          sudo rm -rf /Users/runner/Library/Android 2>/dev/null || true
+          sudo rm -rf /opt/android-sdk 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android 2>/dev/null || true
           echo "=== Disk sau khi don ===" && df -h / | tail -1
 
       # ── 4. Download từ Google Drive via rclone + Service Account ────────
@@ -73,6 +78,7 @@ jobs:
         env:
           GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
           GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GAME_NAME: ${{ inputs.game_name }}
         run: |
           # Cài rclone nếu chưa có
           if ! command -v rclone &>/dev/null; then
@@ -88,93 +94,51 @@ jobs:
           printf '[gdrive]\ntype = drive\nscope = drive.readonly\nservice_account_file = %s\nroot_folder_id = %s\n' \
             "$SA_FILE" "$GDRIVE_ROOT_ID" > "$HOME/.config/rclone/rclone.conf"
 
-          mkdir -p "$HOME/gdrive_raw"
-          # Chi download keys/ va folder game cu the (khong download toan bo Drive)
-          rclone copy gdrive:keys "$HOME/gdrive_raw/keys" \
+          # Download keys + game thang vao dich, khong qua gdrive_raw intermediary
+          # (tranh duplicate 18 GB NSPs tren disk)
+          mkdir -p "$HOME/keys"
+          rclone copy gdrive:keys "$HOME/keys" \
             --drive-acknowledge-abuse --transfers 4 2>&1 | tail -5
-          rclone copy "gdrive:Games/$GAME_NAME" "$HOME/gdrive_raw/Games/$GAME_NAME" \
+
+          mkdir -p "$HOME/Games/$GAME_NAME"
+          rclone copy "gdrive:Games/$GAME_NAME" "$HOME/Games/$GAME_NAME" \
             --drive-acknowledge-abuse --transfers 4 2>&1 | tail -5
 
-          echo "GDRIVE_BASE=$HOME/gdrive_raw" >> "$GITHUB_ENV"
-          echo "=== Noi dung Drive ==="
-          find "$HOME/gdrive_raw" -maxdepth 3 | sort
+          echo "=== Disk sau download ===" && df -h / | tail -1
+          echo "=== Files downloaded ==="
+          find "$HOME/Games/$GAME_NAME" -maxdepth 1 | sort
+          find "$HOME/keys" -maxdepth 1 | sort
 
-      # ── 4b. Download individual large files (per-game overrides) ─────────
-      - name: Download per-game large files
-        env:
-          GAME_NAME: ${{ inputs.game_name }}
-          FE3H_FILE1_ID: ${{ secrets.FE3H_FILE1_ID }}
-          FE3H_FILE2_ID: ${{ secrets.FE3H_FILE2_ID }}
-          FE3H_FILE3_ID: ${{ secrets.FE3H_FILE3_ID }}
-          FE3H_UPDATE_ID: ${{ secrets.FE3H_UPDATE_ID }}
-          FE3H_DLC_ID: ${{ secrets.FE3H_DLC_ID }}
-        run: |
-          GAMES_DIR=$(find "$GDRIVE_BASE" -maxdepth 1 -type d -iname "games" | head -1)
-          GAME_DIR="${GAMES_DIR:-$GDRIVE_BASE/Games}/$GAME_NAME"
-          mkdir -p "$GAME_DIR"
-
-          dl() {
-            local fid="$1" dest="$2"
-            if [ -z "$fid" ]; then
-              echo "SKIP: no ID for $dest"
-              return 0
-            fi
-            [ -f "$dest" ] && { echo "EXISTS: $dest"; return 0; }
-            echo "=== Downloading: $dest ==="
-            gdown --fuzzy "$fid" -O "$dest"
-            local sz
-            sz=$(stat -f%z "$dest" 2>/dev/null || echo 0)
-            if [ "$sz" -lt 1048576 ]; then
-              echo "ERROR: $dest too small ($sz bytes), download failed"
-              cat "$dest" 2>/dev/null || true
-              exit 1
-            fi
-            echo "OK: $dest ($(du -sh "$dest" | cut -f1))"
-          }
-
-          # No per-game overrides needed (all games use rclone from Drive)
-          echo "No per-game overrides for: $GAME_NAME"
-
-          echo "=== Game dir ===" && ls -lh "$GAME_DIR/" 2>/dev/null || true
+      # ── 4b. (reserved for future per-game overrides) ─────────────────────
 
       # ── 5. Lấy prod.keys ─────────────────────────────────────────────────
       - name: Setup prod.keys
         run: |
-          mkdir -p "$HOME/keys"
-          KEYS_FILE=$(find "$GDRIVE_BASE/keys" -name "prod.keys" 2>/dev/null | head -1)
+          KEYS_FILE=$(find "$HOME/keys" -name "prod.keys" 2>/dev/null | head -1)
           if [ -z "$KEYS_FILE" ]; then
-            echo "ERROR: Khong tim thay prod.keys trong keys/"
-            ls -la "$GDRIVE_BASE/" || true
+            echo "ERROR: Khong tim thay prod.keys trong $HOME/keys/"
+            ls -la "$HOME/keys/" || true
             exit 1
           fi
-          cp "$KEYS_FILE" "$HOME/keys/prod.keys"
-          echo "prod.keys: $(wc -c < "$HOME/keys/prod.keys") bytes"
+          echo "prod.keys: $(wc -c < "$KEYS_FILE") bytes"
 
-      # ── 6. Giải nén RAR game ─────────────────────────────────────────────
+      # ── 6. Giải nén RAR game (nếu có) ────────────────────────────────────
       - name: Extract game files
         env:
           GAME_NAME: ${{ inputs.game_name }}
         run: |
-          # Tìm folder games/ hoặc Games/ (case insensitive)
-          GAMES_DIR=$(find "$GDRIVE_BASE" -maxdepth 1 -type d -iname "games" | head -1)
-          GAME_SRC="${GAMES_DIR:-$GDRIVE_BASE/games}/$GAME_NAME"
-          GAME_DST="$HOME/Games/$GAME_NAME"
+          GAME_DIR="$HOME/Games/$GAME_NAME"
 
-          if [ ! -d "$GAME_SRC" ]; then
-            echo "ERROR: Khong tim thay folder '$GAME_NAME' trong games/"
-            echo "Cac game co san:"
-            ls "$GDRIVE_BASE/games/" 2>/dev/null || echo "(rong)"
+          if [ ! -d "$GAME_DIR" ]; then
+            echo "ERROR: Khong tim thay folder $GAME_DIR"
             exit 1
           fi
 
-          mkdir -p "$GAME_DST"
+          echo "=== Noi dung game folder ==="
+          ls -lh "$GAME_DIR/"
 
-          echo "=== Noi dung folder game tren Drive ==="
-          ls -lh "$GAME_SRC/"
-
-          # Extract tất cả RARs — bỏ qua continuation parts (.part02+, .r00, .r01...)
-          # -D: không tạo subfolder, extract thẳng vào GAME_DST
-          ENTRY_RARS=$(find "$GAME_SRC" -maxdepth 2 -iname "*.rar" \
+          # Extract RAR files in-place (bỏ qua continuation parts)
+          ENTRY_RARS=$(find "$GAME_DIR" -maxdepth 2 -iname "*.rar" \
             | grep -viE "\.part0*[2-9][0-9]*\.rar$" \
             | grep -viE "\.r[0-9]{2}$" \
             | sort)
@@ -182,25 +146,19 @@ jobs:
           if [ -n "$ENTRY_RARS" ]; then
             echo "$ENTRY_RARS" | while IFS= read -r RAR; do
               echo "=== Giai nen: $RAR ==="
-              unar -force-overwrite -D "$RAR" -o "$GAME_DST/"
-              rm -f "$RAR"
-              echo "=== Disk sau khi xoa RAR ===" && df -h "$HOME" | tail -1
+              unar -force-overwrite -D "$RAR" -o "$GAME_DIR/"
+              # Xoa tat ca parts cua RAR nay de giai phong disk
+              BASE=$(echo "$RAR" | sed 's/\.part0*1\.rar$//' | sed 's/\.rar$//')
+              rm -f "${BASE}".rar "${BASE}".part*.rar "${BASE}".r[0-9][0-9] 2>/dev/null || true
+              echo "=== Disk sau khi xoa RAR ===" && df -h / | tail -1
             done
           else
-            # Không có RAR — copy thẳng NSP/XCI/NSZ
-            echo "Khong co RAR, copy file game truc tiep..."
-            find "$GAME_SRC" -maxdepth 3 \( -iname "*.nsp" -o -iname "*.xci" -o -iname "*.nsz" \) \
-              -exec cp {} "$GAME_DST/" \;
+            echo "Khong co RAR — NSP/XCI/NSZ files da san sang."
           fi
 
           echo "=== File sau khi extract ==="
-          find "$GAME_DST" -type f | sort
-
-          # Xóa toàn bộ Drive download để giải phóng disk trước khi build
-          echo "=== Giai phong disk ==="
-          df -h "$HOME" | tail -1
-          rm -rf "$HOME/gdrive_raw"
-          df -h "$HOME" | tail -1
+          find "$GAME_DIR" -type f | sort
+          echo "=== Disk truoc build ===" && df -h / | tail -1
 
       # ── 7. Build IPA (ROMFS separate — IPA nho, romfs.img rieng) ─────────
       - name: Build IPA
