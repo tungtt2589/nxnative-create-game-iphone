@@ -1,0 +1,57 @@
+name: Manage Google Drive
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'list = show sizes, delete = xoa folder'
+        required: true
+        default: 'list'
+        type: choice
+        options: [list, delete]
+      path:
+        description: 'Path on Drive (chi dung voi delete), vi du: builds/FEEngage-romfs-40'
+        required: false
+        type: string
+
+jobs:
+  manage:
+    runs-on: xcode-27
+    steps:
+      - name: Configure rclone with OAuth
+        env:
+          GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
+          GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
+        run: |
+          mkdir -p "$HOME/.config/rclone"
+          cat > "$HOME/.config/rclone/rclone.conf" << CONF
+          [gdrive]
+          type = drive
+          scope = drive
+          token = ${GDRIVE_OAUTH_TOKEN}
+          root_folder_id = ${GDRIVE_ROOT_ID}
+          CONF
+          if ! command -v rclone &>/dev/null; then brew install rclone; fi
+
+      - name: List Drive (with sizes)
+        if: inputs.action == 'list'
+        run: |
+          echo "=== Drive root ==="
+          rclone lsd gdrive: --drive-acknowledge-abuse
+          echo ""
+          echo "=== Sizes per top-level folder ==="
+          rclone size gdrive: --drive-acknowledge-abuse 2>&1
+          echo ""
+          echo "=== builds/ contents ==="
+          rclone ls gdrive:builds/ --drive-acknowledge-abuse 2>/dev/null || echo "(no builds/ folder)"
+          echo ""
+          echo "=== Games/ contents ==="
+          rclone lsd gdrive:Games/ --drive-acknowledge-abuse 2>/dev/null || true
+
+      - name: Delete path
+        if: inputs.action == 'delete'
+        run: |
+          echo "Deleting: gdrive:${{ inputs.path }}"
+          rclone purge "gdrive:${{ inputs.path }}" --drive-acknowledge-abuse 2>&1
+          echo "Done. Current Drive size:"
+          rclone size gdrive: --drive-acknowledge-abuse 2>&1
