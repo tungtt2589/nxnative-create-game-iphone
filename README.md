@@ -393,3 +393,44 @@ rclone copy "gdrive:Games/FE3H" ~/Games/FE3H --drive-acknowledge-abuse --transfe
 SCALEWAY.md                    # Quick reference Scaleway
 README.md                      # File nay
 ```
+
+---
+
+## Workflow 3: Upload Artifact lên Google Drive (không cần rebuild)
+
+File: `.github/workflows/upload-to-drive.yml`
+
+Dùng để upload artifact đã build (IPA hoặc RomFS) lên Google Drive bằng OAuth user credentials.
+
+**Yêu cầu**: Secret `GDRIVE_OAUTH_TOKEN` (rclone OAuth token của Google account cá nhân)
+
+```
+GitHub -> Actions -> "Upload Artifact to Google Drive" -> Run workflow
+run_id: <run ID chứa artifact>
+artifact_name: FEEngage-romfs-43
+dest_folder: builds/FEEngage
+```
+
+> **Tại sao cần OAuth thay SA?** Service Account không có storage quota trên Google Drive cá nhân → `storageQuotaExceeded`. OAuth user credentials dùng quota của tài khoản Google cá nhân (15 GB free).
+
+### Lấy GDRIVE_OAUTH_TOKEN
+
+```bash
+rclone authorize "drive"
+# Browser mở -> đăng nhập Google -> copy JSON token
+# gh secret set GDRIVE_OAUTH_TOKEN --repo tungtt2589/nxnative-create-game-iphone
+```
+
+---
+
+## Games đã build
+
+| Game | Runner | IPA | RomFS | Notes |
+|------|--------|-----|-------|-------|
+| Unicorn Overlords | GitHub hosted | 3.2 GB bundled | — | ROMFS=bundle |
+| FF Tactics | GitHub hosted | nhỏ | artifact | ROMFS=separate |
+| Tactics Ogre | GitHub hosted | nhỏ | artifact | ROMFS=separate |
+| Octopath Traveler 1 | GitHub hosted | 156 MB | 3.5 GB | `--provisional` |
+| Octopath Traveler 2 | GitHub hosted | 526 MB | 12 GB | `--provisional` |
+| FE3H | **Scaleway M4** | 1.1 GB | 12 GB | Metal 4 required |
+| **FEEngage** | **GitHub hosted** | 296 MB | 14.4 GB | No Metal 4 needed |
