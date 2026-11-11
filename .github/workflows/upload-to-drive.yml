@@ -1,0 +1,82 @@
+name: Upload Artifact to Google Drive
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run ID chua artifact (vi du: 43002813039)'
+        required: true
+        type: string
+      artifact_name:
+        description: 'Ten artifact (vi du: FEEngage-romfs-43)'
+        required: true
+        type: string
+      dest_folder:
+        description: 'Thu muc dich tren Drive (vi du: builds/FEEngage)'
+        required: true
+        default: 'builds'
+        type: string
+
+jobs:
+  upload:
+    name: Upload ${{ inputs.artifact_name }} → Drive
+    runs-on: xcode-27
+    timeout-minutes: 120
+
+    steps:
+      - name: Install rclone
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+        run: |
+          if ! command -v rclone &>/dev/null; then brew install rclone; fi
+          rclone version
+
+      - name: Configure rclone with OAuth
+        env:
+          GDRIVE_ROOT_ID: ${{ secrets.GDRIVE_ROOT_ID }}
+          GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
+        run: |
+          mkdir -p "$HOME/.config/rclone"
+          # Dung OAuth token cua user (co quota) thay vi SA (khong co quota)
+          cat > "$HOME/.config/rclone/rclone.conf" << CONF
+          [gdrive]
+          type = drive
+          scope = drive
+          token = ${GDRIVE_OAUTH_TOKEN}
+          root_folder_id = ${GDRIVE_ROOT_ID}
+          CONF
+          # Test connection
+          rclone lsd gdrive: --max-depth 1 2>&1 | head -5
+
+      - name: Download artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/artifact"
+          echo "=== Downloading ${{ inputs.artifact_name }} from run ${{ inputs.run_id }} ==="
+          gh run download ${{ inputs.run_id }} \
+            -n "${{ inputs.artifact_name }}" \
+            --repo ${{ github.repository }} \
+            -D "$HOME/artifact/"
+          echo "=== Downloaded files ==="
+          ls -lh "$HOME/artifact/"
+          df -h / | tail -1
+
+      - name: Upload to Google Drive
+        run: |
+          DEST="${{ inputs.dest_folder }}/${{ inputs.artifact_name }}"
+          echo "=== Uploading to gdrive:$DEST ==="
+          rclone copy "$HOME/artifact/" "gdrive:$DEST" \
+            --drive-acknowledge-abuse \
+            --transfers 4 \
+            --progress \
+            2>&1
+          echo "=== Upload complete ==="
+          rclone ls "gdrive:$DEST" 2>&1
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## Upload thanh cong!" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: \`${{ inputs.artifact_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Drive folder: \`${{ inputs.dest_folder }}/${{ inputs.artifact_name }}\`" >> "$GITHUB_STEP_SUMMARY"
