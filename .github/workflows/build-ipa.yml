@@ -9,6 +9,11 @@ on:
           Vi du: MarioOdyssey, Zelda_TOTK, Hades
         required: true
         type: string
+      provisional:
+        description: 'Dung --provisional khi shader version mismatch'
+        required: false
+        type: boolean
+        default: false
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
@@ -165,9 +170,14 @@ jobs:
         run: |
           # Doi ROMFS = 'bundle' thanh 'separate' de IPA nho, romfs.img rieng
           sed -i '' "s/ROMFS = 'bundle'/ROMFS = 'separate'/" scripts/build_ipa_from_nsp.py
+          EXTRA_FLAGS=""
+          if [ "${{ inputs.provisional }}" = "true" ]; then
+            EXTRA_FLAGS="--provisional"
+          fi
           python3 scripts/build_ipa_from_nsp.py \
             "$HOME/Games/${{ inputs.game_name }}" \
-            -k "$HOME/keys/prod.keys"
+            -k "$HOME/keys/prod.keys" \
+            $EXTRA_FLAGS
 
       # ── 8. Tìm và upload IPA + romfs.img ─────────────────────────────────
       - name: Find built IPA and romfs
