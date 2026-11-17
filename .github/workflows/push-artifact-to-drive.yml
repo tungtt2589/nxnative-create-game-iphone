@@ -1,0 +1,61 @@
+name: Push Artifact to Google Drive
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'GitHub Actions run ID (lay tu URL cua build)'
+        required: true
+        type: string
+      artifact_name:
+        description: 'Ten artifact (vd: divinity-romfs-50)'
+        required: true
+        type: string
+      dest_folder:
+        description: 'Ten folder tren Drive (de trong = dung artifact_name)'
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  push-to-drive:
+    name: Push ${{ inputs.artifact_name }} to Drive
+    runs-on: macos-15
+
+    steps:
+      - name: Download artifact from run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$HOME/artifact"
+          gh run download ${{ inputs.run_id }} \
+            -n "${{ inputs.artifact_name }}" \
+            -D "$HOME/artifact" \
+            -R ${{ github.repository }}
+          echo "=== Artifact contents ==="
+          ls -lh "$HOME/artifact/"
+
+      - name: Upload to Google Drive
+        env:
+          GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
+        run: |
+          if ! command -v rclone &>/dev/null; then brew install rclone; fi
+          mkdir -p "$HOME/.config/rclone"
+          printf '[gdrive_rw]\ntype = drive\nscope = drive\ntoken = %s\nroot_folder_id = 1a1XnUGcMaOw1mKw1PK86Fqm4OPZxQHYQ\n' \
+            "$GDRIVE_OAUTH_TOKEN" > "$HOME/.config/rclone/rclone.conf"
+
+          DEST="${{ inputs.dest_folder }}"
+          if [ -z "$DEST" ]; then
+            DEST="${{ inputs.artifact_name }}"
+          fi
+
+          echo "Uploading to Drive folder: $DEST"
+          rclone copy "$HOME/artifact/" "gdrive_rw:$DEST" \
+            --drive-acknowledge-abuse \
+            --transfers 4 \
+            --progress \
+            2>&1
+
+          echo ""
+          echo "=== Uploaded to Drive: $DEST ==="
+          rclone ls "gdrive_rw:$DEST" --drive-acknowledge-abuse 2>&1
