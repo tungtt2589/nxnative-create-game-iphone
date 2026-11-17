@@ -281,7 +281,7 @@ bash .github/scripts/scaleway_manage.sh delete
 | Octopath Traveler 2 | GitHub hosted | 526 MB | 12 GB | `--provisional` | ROMFS=separate |
 | FE3H | **Scaleway M4** | 1.1 GB | 12 GB | `--provisional --allow-other-metal` | Can Metal 4 |
 | FEEngage | GitHub hosted | 296 MB | 14.4 GB | — | — |
-| **Divinity: Original Sin 2** | **GitHub hosted** | **403 MB** | **11 GB** | `--provisional` | First build; chua test tren iPhone |
+| **Divinity: Original Sin 2** | **GitHub hosted** | **403 MB** | **11 GB** | `--provisional` | Chay duoc tren iPhone |
 
 **Trang thai hien tai (2026-11-17):** 8 game da build. IPA + RomFS tu dong upload len Google Drive `builds/` folder sau moi build.
 
@@ -462,3 +462,4 @@ rclone authorize "drive"
 | Octopath Traveler 2 | GitHub hosted | 526 MB | 12 GB | `--provisional` |
 | FE3H | **Scaleway M4** | 1.1 GB | 12 GB | Metal 4 required |
 | **FEEngage** | **GitHub hosted** | 296 MB | 14.4 GB | No Metal 4 needed |
+| **Divinity: Original Sin 2** | **GitHub hosted** | 403 MB | 11 GB | `--provisional` | Chay duoc tren iPhone |
