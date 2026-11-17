@@ -9,13 +9,12 @@ Build Nintendo Switch games thanh IPA de chay tren iPhone, su dung pipeline tu d
 ```
 Google Drive (game files .rar/.nsp)
     down rclone download
-Scaleway M4-SP (bare-metal Apple M4, Metal 4)
-    -> GitHub Actions self-hosted runner
+GitHub Actions runner (xcode-27 hosted hoac Scaleway M4-SP)
     -> nxnative build (Python 3.12 + .NET 10 + Metal Toolchain)
     -> IPA + RomFS.img artifact
-    down gh run download (tren Scaleway)
-    down rsync/SCP ve Mac local (~450 KB/s)
-iPhone (Sideloadly install + RomFS qua Finder USB)
+    up auto-upload IPA + RomFS len Google Drive (builds/ folder)
+    down download tu Drive ve Mac
+iPhone (LiveContainer + RomFS qua Finder USB)
 ```
 
 ---
@@ -199,39 +198,45 @@ rsync -av --partial --progress \
 ## Cai game len iPhone
 
 **Thiet bi:** iPhone 16 Pro Max (A18 Pro, iOS 26)
-**Tool:** Sideloadly (cai) + AltStore (quan ly refresh 7 ngay)
+**Tool:** LiveContainer (chay game) + AltStore (quan ly refresh 7 ngay)
 
-### Buoc 1: Cai IPA
+### LiveContainer (khuyen dung - tu 2026-11-17)
 
-1. Mo **Sideloadly** tren Mac
-2. Cam iPhone qua USB
-3. Keo file `.ipa` vao Sideloadly -> nhap Apple ID -> Start
-4. Cho cai xong
+LiveContainer cho phep cai **nhieu game vao 1 app slot** thay vi moi game 1 slot.
 
-> **Tai sao dung Sideloadly thay AltStore?**
-> AltStore crash khi install IPA lon (>500MB) tren Mac. Sideloadly xu ly tot hon.
->
-> **Sau khi Sideloadly install xong**, mo AltStore -> My Apps -> app tu xuat hien (cung Apple ID) -> AltStore quan ly tu refresh moi 7 ngay.
+| | Truoc (Sideloadly) | Sau (LiveContainer) |
+|---|---|---|
+| Slots dung | 1/game | 1 cho tat ca game |
+| Refresh 7 ngay | Tung game | Chi LiveContainer |
+| iOS 26 | Phai setup JITLess cert | Setup 1 lan |
+
+**Cai LiveContainer:**
+1. Mo AltStore -> `+` -> chon `LiveContainer.ipa`
+2. Settings -> Import Certificate (tu AltStore) -> Verify JITLess
+
+**Cai game vao LiveContainer:**
+1. Finder -> iPhone -> Files -> LiveContainer -> keo `.ipa` vao
+2. Mo LiveContainer -> launch game
 
 ### Buoc 2: Copy RomFS (chi cho ROMFS=separate builds)
 
 Build `ROMFS=separate` co IPA nho + file `RomFS.img` rieng. **Game crash ngay neu thieu RomFS.**
 
-1. Cam iPhone qua USB
-2. Mo **Finder** -> chon iPhone o sidebar
-3. Tab **Files** -> tim app **DmIOS**
-4. Vao thu muc **Documents**
-5. Keo tha `RomFS.img` vao do
-6. Cho copy xong
-7. Mo game
+1. Launch game trong LiveContainer 1 lan (crash OK — tao thu muc)
+2. Finder -> iPhone -> Files -> LiveContainer -> `data/application/<UUID>/Documents/`
+3. UUID cua game: launch game -> UUID co Date Modified moi nhat
+4. Keo tha `RomFS.img` vao thu muc Documents do
 
-> Mo app 1 lan dau (du crash) truoc khi copy RomFS, de app tao thu muc Documents.
+**Script tu dong copy RomFS** (thay cho drag-drop):
+```bash
+# Yeu cau: brew install libimobiledevice ifuse && brew install --cask macfuse
+~/copy_romfs_livecontainer.sh <game_name>
+```
 
 ### Refresh moi 7 ngay
 
-AltStore tu refresh neu Mac + iPhone cung WiFi. Neu het han:
-- Mo AltStore -> My Apps -> Refresh All
-- Hoac Sideloadly install lai IPA
+AltStore tu refresh LiveContainer neu Mac + iPhone cung WiFi. Tat ca game ben trong duoc refresh theo.
+- Mo AltStore -> My Apps -> Refresh All (chi can refresh LiveContainer)
 
 ---
 
@@ -265,16 +270,26 @@ bash .github/scripts/scaleway_manage.sh delete
 
 ## Games da build thanh cong
 
-| Game | IPA | RomFS | Flags | Notes |
-|------|-----|-------|-------|-------|
-| Unicorn Overlords | 3.2 GB (bundled) | khong co | — | ROMFS=bundle |
-| FF Tactics | nho | artifact | — | ROMFS=separate |
-| Tactics Ogre | nho | artifact | — | ROMFS=separate |
-| Octopath Traveler 1 | 156 MB | 3.5 GB | `--provisional` | ROMFS=separate |
-| Octopath Traveler 2 | 526 MB | 12 GB | `--provisional` | ROMFS=separate |
-| **FE3H** | **1.1 GB** | **12 GB** | `--provisional --allow-other-metal` | **Can Scaleway (Metal 4)** |
+> Check truoc khi build: https://nxnative.net/games/<ten-game> — xem iPhone support chua.
 
-**Trang thai hien tai (2026-11-06):** Tat ca 6 game da build + download ve Mac local. Scaleway server da xoa.
+| Game | Runner | IPA | RomFS | Flags | Notes |
+|------|--------|-----|-------|-------|-------|
+| Unicorn Overlords | GitHub hosted | 3.2 GB bundled | — | — | ROMFS=bundle |
+| FF Tactics | GitHub hosted | nho | co | — | ROMFS=separate |
+| Tactics Ogre | GitHub hosted | nho | co | — | ROMFS=separate |
+| Octopath Traveler 1 | GitHub hosted | 156 MB | 3.5 GB | `--provisional` | ROMFS=separate |
+| Octopath Traveler 2 | GitHub hosted | 526 MB | 12 GB | `--provisional` | ROMFS=separate |
+| FE3H | **Scaleway M4** | 1.1 GB | 12 GB | `--provisional --allow-other-metal` | Can Metal 4 |
+| FEEngage | GitHub hosted | 296 MB | 14.4 GB | — | — |
+| **Divinity: Original Sin 2** | **GitHub hosted** | **403 MB** | **11 GB** | `--provisional` | First build; chua test tren iPhone |
+
+**Trang thai hien tai (2026-11-17):** 8 game da build. IPA + RomFS tu dong upload len Google Drive `builds/` folder sau moi build.
+
+### Games chua support (da thu, that bai)
+
+| Game | Ly do | Ghi chu |
+|------|-------|---------|
+| Triangle Strategy | Shader mismatch voi nxnative profile | Profile 2026-11-01, chua test tren iPhone. Thu lai sau khi nxnative cap nhat profile. |
 
 ---
 
@@ -285,6 +300,21 @@ Them env var `DM_ALLOW_OTHER_METAL: "1"` vao step Verify Metal. Xay ra khi Xcode
 
 ### "shader profile mismatch" / DATA1.bin index X vs Y
 Them flag `--provisional` vao lenh build. Flag nay tao lai shader profile tu du lieu game. IPA se lon hon (~1 GB).
+
+### Tat ca shader khong khop (23,000+ rows mismatch)
+Neu TOAN BO shader khong khop (vi du 23,622/23,622), co 2 kha nang:
+1. **Game files sai version/region** — kiem tra NSP co dung version nxnative profile yeu cau khong
+2. **nxnative upstream thay doi shader pipeline** — nxnative cap nhat code lam profile cu khong con dung. Kiem tra commit moi nhat cua `seedds/nxnative` xem co thay doi `gfx/shaders` khong. Neu co, phai cho nxnative regenerate profile cho game do.
+   - `--provisional` khong giai quyet duoc truong hop nay (mat nhieu gio, bi stuck)
+
+### nxnative upstream update lam break build
+nxnative cap nhat thuong xuyen. Neu build dang chay duoc ma dot nhien that bai:
+```bash
+# Kiem tra commit moi nhat cua nxnative
+gh api "repos/seedds/nxnative/commits?per_page=5" --jq '.[] | "\(.commit.committer.date[:10]) \(.sha[:8]) \(.commit.message | split("\n")[0])"'
+# Kiem tra commit cuoi cung cua profile game do
+gh api "repos/seedds/nxnative/commits?path=dm/games/<TITLE_ID>/shader_map.tsv&per_page=1" --jq '.[0] | "\(.commit.committer.date[:10]) \(.commit.message | split("\n")[0])"'
+```
 
 ### Python 3.9 too old
 macOS ship Python 3.9, nxnative can 3.12:
@@ -324,9 +354,7 @@ Dung Sideloadly de cai, AltStore tu nhan vao My Apps sau.
 Binh thuong. App cai bang Sideloadly van duoc auto-refresh boi AltStore trong My Apps.
 
 ### "Device has reached maximum number of installed apps using a free developer profile"
-iOS gioi han tong cong **3 app sideload tren 1 thiet bi** (tinh tat ca Apple ID mien phi cong lai). Dung them Apple ID khac khong giup duoc.
-- Giai phap A: Xoa 1 app cu de lay slot
-- Giai phap B: Apple Developer Account ($99/nam) — unlimited app, khong can resign 7 ngay
+iOS gioi han **3 app sideload** tren 1 thiet bi (free profile). Giai phap: dung **LiveContainer** — tat ca game chay trong 1 app slot duy nhat. Xem phan "Cai game len iPhone" phia tren.
 
 ### Auto-delete script bi stuck neu Mac ngu
 `sleep` trong bash bi tam dung khi Mac ngu. Neu can xoa server tu dong, xoa thu cong khi den gio:
