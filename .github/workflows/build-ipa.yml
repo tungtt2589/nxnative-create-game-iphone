@@ -220,13 +220,11 @@ jobs:
       - name: Upload RomFS to Google Drive
         if: steps.find_ipa.outputs.romfs_path != ''
         env:
-          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
         run: |
-          SA_FILE="$HOME/.config/rclone/sa.json"
-          echo "$GDRIVE_SA_JSON" > "$SA_FILE" && chmod 600 "$SA_FILE"
           mkdir -p "$HOME/.config/rclone"
-          printf '[gdrive_rw]\ntype = drive\nscope = drive\nservice_account_file = %s\nroot_folder_id = 1a1XnUGcMaOw1mKw1PK86Fqm4OPZxQHYQ\n' \
-            "$SA_FILE" > "$HOME/.config/rclone/rclone.conf"
+          printf '[gdrive_rw]\ntype = drive\nscope = drive\ntoken = %s\nroot_folder_id = 1a1XnUGcMaOw1mKw1PK86Fqm4OPZxQHYQ\n' \
+            "$GDRIVE_OAUTH_TOKEN" > "$HOME/.config/rclone/rclone.conf"
           if ! command -v rclone &>/dev/null; then brew install rclone; fi
           DEST="${{ inputs.game_name }}-romfs-${{ github.run_number }}"
           rclone copy "${{ steps.find_ipa.outputs.romfs_path }}" "gdrive_rw:$DEST" \
@@ -235,13 +233,11 @@ jobs:
 
       - name: Upload IPA to Google Drive
         env:
-          GDRIVE_SA_JSON: ${{ secrets.GDRIVE_SA_JSON }}
+          GDRIVE_OAUTH_TOKEN: ${{ secrets.GDRIVE_OAUTH_TOKEN }}
         run: |
-          SA_FILE="$HOME/.config/rclone/sa.json"
-          echo "$GDRIVE_SA_JSON" > "$SA_FILE" && chmod 600 "$SA_FILE"
           mkdir -p "$HOME/.config/rclone"
-          printf '[gdrive_rw]\ntype = drive\nscope = drive\nservice_account_file = %s\nroot_folder_id = 1a1XnUGcMaOw1mKw1PK86Fqm4OPZxQHYQ\n' \
-            "$SA_FILE" > "$HOME/.config/rclone/rclone.conf"
+          printf '[gdrive_rw]\ntype = drive\nscope = drive\ntoken = %s\nroot_folder_id = 1a1XnUGcMaOw1mKw1PK86Fqm4OPZxQHYQ\n' \
+            "$GDRIVE_OAUTH_TOKEN" > "$HOME/.config/rclone/rclone.conf"
           if ! command -v rclone &>/dev/null; then brew install rclone; fi
           DEST="${{ inputs.game_name }}-ipa-${{ github.run_number }}"
           rclone copy "${{ steps.find_ipa.outputs.ipa_path }}" "gdrive_rw:$DEST" \
