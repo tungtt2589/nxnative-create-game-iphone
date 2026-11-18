@@ -282,14 +282,15 @@ bash .github/scripts/scaleway_manage.sh delete
 | FE3H | **Scaleway M4** | 1.1 GB | 12 GB | `--provisional --allow-other-metal` | Can Metal 4 |
 | FEEngage | GitHub hosted | 296 MB | 14.4 GB | — | — |
 | **Divinity: Original Sin 2** | **GitHub hosted** | **403 MB** | **11 GB** | `--provisional` | Chay duoc tren iPhone |
+| **Triangle Strategy** | **GitHub hosted** | nho | co | `--provisional` | Chay duoc tren iPhone |
 
-**Trang thai hien tai (2026-11-17):** 8 game da build. IPA + RomFS tu dong upload len Google Drive `builds/` folder sau moi build.
+**Trang thai hien tai (2026-11-18):** 9 game da build. IPA + RomFS tu dong upload len Google Drive `builds/` folder sau moi build.
 
 ### Games chua support (da thu, that bai)
 
 | Game | Ly do | Ghi chu |
 |------|-------|---------|
-| Triangle Strategy | Shader mismatch voi nxnative profile | Profile 2026-11-01, chua test tren iPhone. Thu lai sau khi nxnative cap nhat profile. |
+_(chua co game nao chua support hien tai)_
 
 ---
 
@@ -463,3 +464,4 @@ rclone authorize "drive"
 | FE3H | **Scaleway M4** | 1.1 GB | 12 GB | Metal 4 required |
 | **FEEngage** | **GitHub hosted** | 296 MB | 14.4 GB | No Metal 4 needed |
 | **Divinity: Original Sin 2** | **GitHub hosted** | 403 MB | 11 GB | `--provisional` | Chay duoc tren iPhone |
+| **Triangle Strategy** | **GitHub hosted** | nhỏ | có | `--provisional` | Chay duoc tren iPhone |
